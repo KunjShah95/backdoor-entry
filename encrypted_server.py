@@ -26,7 +26,7 @@ class Colors:
 
 
 class EncryptedBackdoorServer:
-    def __init__(self, host="0.0.0.0", port=4444, password="P@55w0rd!"):
+    def __init__(self, host="0.0.0.0", port=4444, password=""):
         self.host = host
         self.port = port
         self.socket = None
